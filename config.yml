@@ -1,0 +1,32 @@
+Main:
+    User: jano
+    ### Shell for calling the script ###
+    ### Following values are available:
+    ### sudo - call script using "sudo su - -c"
+    ### secured_sudo  -see below for special use
+    ### sh - call script using "sh -c"
+    ### Default: sh
+    Runshell: sh
+
+Path:
+    HostsDir: ./hosts
+    DefaultHostlist: ./hosts/hosts.default
+    ErrorBlacklist: ./etc/error_blacklist.conf
+    Reports: ./reports
+    Logs: ./logs
+
+Timeout:
+    SshConnection: 5
+    ScriptRun: 30
+    ProcessKill: 1
+    CtrlC: 2
+
+Settings:
+    ReportDisplayErrors: yes
+    HumanReadableReport: yes
+    ReportCleanupDays: 120
+    ### set loglevel 0=no logging, 1=log just errors and issues
+    ### 2=log warnings and administrative messages
+    ### if not set, default is 1
+    LogLevel: 1
+    OutputHostnameDelimiter: ' '
