@@ -7,6 +7,9 @@ import datetime
 import argparse
 import concurrent.futures
 from fabric import Connection
+import pdb
+import random
+import string
 
 # go to PyBroadexec directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -64,7 +67,7 @@ def check_conflicts():
         raise Exception('Filter is specified but hostlist is missing. Use -l [HOSTLIST] or remove filter.')
     if getopts.args.hosts and getopts.args.list:
         raise Exception('-l, use hostlist, is not compatible with -H, defined hosts.')
-    if getopts.args.human_readable and grep:
+    if getopts.args.human_readable and getopts.args.grep:
         raise Exception('-e, human readable, is not compatible with -g, grep option.')
     if getopts.args.case_insensitive and (not getopts.args.grep):
         raise Exception('-i, case insensitive, can be used only with -g, grep option.')
@@ -129,10 +132,27 @@ if os.path.isfile(LogLastRun):
 #test case for -H
 
 Command = 'uname -a; uptime'
+    
 
 def run_ssh(Host):
     UserHost = Cfg['Main']['User']+'@'+Host
+    if getopts.args.script:
+        #pdb.set_trace()
+        lettersAndDigits = string.ascii_letters + string.digits
+        RandomPart = ''.join(random.choice(lettersAndDigits) for _ in range(8))
+        TmpScript = '/tmp/pybroadexec_'+RunId+'_'+RandomPart+'.sh'
+        Connection(UserHost).put(getopts.args.script, TmpScript)
+        Command = 'chmod +x '+TmpScript+';'+TmpScript+';rm '+TmpScript
     Result = Connection(UserHost).run(Command, hide=True)
+    #if Cfg['Settings']['OutputHostnameDelimiter']:
+    #    OutputHostnameDelimiter = Cfg['Settings']['OutputHostnameDelimiter']
+    #else:
+    #    OutputHostnameDelimiter = ' '
+    #if getopts.args.human_readable:
+    #    Msg = "{0.connection.host}"+OutputHostnameDelimiter+"\n{0.stdout}"
+    #else:
+    #    Msg1 = "{0.connection.host}"+OutputHostnameDelimiter+"{0.stdout}"
+    #    Msg = Msg1.replace('\n', ' ')
     Msg = "{0.connection.host}\n{0.stdout}"
     return Msg.format(Result)
 
