@@ -10,6 +10,7 @@ from fabric import Connection
 import pdb
 import random
 import string
+import mmap
 
 # go to PyBroadexec directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -130,20 +131,20 @@ if os.path.isfile(LogLastRun):
 #        StatsFile.write("STATE INIT\nPROGRESS NULL NULL NULL NULL\n")
 #        StatsFile.close()
 
-#test case for -H
-
-Command = 'uname -a; uptime'
-    
-
 def run_ssh(Host):
     UserHost = Cfg['Main']['User']+'@'+Host
+    Command = ''
     if getopts.args.script:
         #pdb.set_trace()
         lettersAndDigits = string.ascii_letters + string.digits
         RandomPart = ''.join(random.choice(lettersAndDigits) for _ in range(8))
         TmpScript = '/tmp/pybroadexec_'+RunId+'_'+RandomPart+'.sh'
         Connection(UserHost).put(getopts.args.script, TmpScript)
-        Command = 'chmod +x '+TmpScript+';'+TmpScript+';rm '+TmpScript
+        if ImportOsCheckLib:
+            TmpOsLib = '/tmp/osrelease_lib_'+RunId+'_'+RandomPart+'.sh'
+            Connection(UserHost).put(Cfg['Path']['OsReleaseLib'], TmpOsLib)
+            Command += 'chmod 700 '+TmpOsLib+';sed -i -e \'/#!/r '+TmpOsLib+'\' '+TmpScript+';rm '+TmpOsLib+'; '
+        Command += 'chmod 700 '+TmpScript+';'+TmpScript+';rm '+TmpScript
     Result = Connection(UserHost).run(Command, hide=True)
     #if Cfg['Settings']['OutputHostnameDelimiter']:
     #    OutputHostnameDelimiter = Cfg['Settings']['OutputHostnameDelimiter']
@@ -170,6 +171,12 @@ except NameError:
 if not Hosts:
     print('ERROR: No hosts defined. Exiting...')
     sys.exit(1)
+
+with open(getopts.args.script) as Stream:
+    s = mmap.mmap(Stream.fileno(), 0, access=mmap.ACCESS_READ)
+    if s.find(b'osrelease_check') != -1:
+        ImportOsCheckLib = 'true'
+Stream.close()
 
 with concurrent.futures.ThreadPoolExecutor() as executor:
     Results = executor.map(run_ssh, Hosts)
