@@ -19,6 +19,7 @@ with open ("config.yml", 'r') as Stream:
         Cfg = yaml.safe_load(Stream)
     except yaml.YAMLError as Exc:
         print(Exc)
+    Stream.close()
 
 def getopts():
     parser = argparse.ArgumentParser()
@@ -157,8 +158,22 @@ def run_ssh(Host):
     return Msg.format(Result)
 
 if getopts.args.hosts:
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        Hosts = getopts.args.hosts.split(",")
-        Results = executor.map(run_ssh, Hosts)
-        for result in Results:
-            print(result)
+    Hosts = getopts.args.hosts.split(",")
+elif getopts.args.list:
+    Hosts = [line.rstrip('\n') for line in open(getopts.args.list)]
+
+try:
+    Hosts
+except NameError:
+    Hosts = ''
+
+if not Hosts:
+    print('ERROR: No hosts defined. Exiting...')
+    sys.exit(1)
+
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    Results = executor.map(run_ssh, Hosts)
+    for result in Results:
+        print(result)
+
+
