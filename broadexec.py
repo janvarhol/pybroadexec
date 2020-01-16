@@ -13,6 +13,8 @@ import string
 import mmap
 import logging
 from itertools import repeat
+from consolemenu import *
+from consolemenu.items import *
 
 
 def run_ssh(Host, User, Script, RunId, ImportOsCheckLib, OsReleasePath, OutputHostnameDelimiter, human_readable):
@@ -196,7 +198,20 @@ def main():
         print('ERROR: No hosts defined. Exiting...')
         sys.exit(1)
 
-    with open(args.script) as Stream:
+
+    ### SCRIPT
+    if not args.script:
+        scripts = []
+        for root, dirs, files in os.walk(Cfg['Path']['ScriptsDir']):
+            for file in files:
+                if file.endswith('.sh'):
+                    scripts.append(file)
+        script_selection = SelectionMenu.get_selection(scripts)
+        script = Cfg["Path"]["ScriptsDir"]+'/'+scripts[script_selection]
+    else:
+        script = args.script
+
+    with open(script) as Stream:
         s = mmap.mmap(
                 Stream.fileno(),
                 0,
@@ -204,6 +219,8 @@ def main():
                 )
         if s.find(b'osrelease_check') != -1:
             ImportOsCheckLib = 'true'
+        else:
+            ImportOsCheckLib = 'false'
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         Results = executor.map(

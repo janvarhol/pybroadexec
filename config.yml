@@ -11,6 +11,7 @@ Main:
 Path:
     HostsDir: ./hosts
     DefaultHostlist: ./hosts/hosts.default
+    ScriptsDir: ./scripts
     ErrorBlacklist: ./etc/error_blacklist.conf
     Reports: ./reports
     Logs: ./logs
