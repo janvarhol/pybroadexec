@@ -15,11 +15,16 @@ import logging
 from itertools import repeat
 
 
-def run_ssh(Host, User, Script, RunId, ImportOsCheckLib, OsReleasePath):
+def run_ssh(Host, User, Script, RunId, ImportOsCheckLib, OsReleasePath, OutputHostnameDelimiter, human_readable):
     UserHost = User+'@'+Host
     Command = ''
     lettersAndDigits = string.ascii_letters + string.digits
     RandomPart = ''.join(random.choice(lettersAndDigits) for __ in range(8))
+
+    try:
+        Connection(UserHost).open()
+    except:
+        return ('ERROR'),Host,('Unable to open SSH connection.')
 
     if Script:
         # pdb.set_trace()
@@ -36,22 +41,16 @@ def run_ssh(Host, User, Script, RunId, ImportOsCheckLib, OsReleasePath):
 
         Command += \
             'chmod 700 '+TmpScript+';\
+            uname -n;\
             '+TmpScript+';\
             rm '+TmpScript
 
     Result = Connection(UserHost).run(Command, hide=True)
-    # if Cfg['Settings']['OutputHostnameDelimiter']:
-    #     OutputHostnameDelimiter = Cfg['Settings']['OutputHostnameDelimiter']
-    # else:
-    #     OutputHostnameDelimiter = ' '
-    # if args.human_readable:
-    #     Msg = "{0.connection.host}"+OutputHostnameDelimiter+"\n{0.stdout}"
-    # else:
-    #     Msg1 = "{0.connection.host}"+OutputHostnameDelimiter+"{0.stdout}"
-    #     Msg = Msg1.replace('\n', ' ')
-    Msg = "{0.connection.host}\n{0.stdout}"
-    return Msg.format(Result)
-
+    Msg = OutputHostnameDelimiter+"\n{0.stdout}\n{0.stderr}"
+    if human_readable:
+        return ('OK'),Host,Msg.format(Result)
+    else:
+        return ('OK'),Host,Msg.format(Result).replace('\n', ' ')
 
 def main():
     # go to PyBroadexec directory
@@ -107,28 +106,28 @@ def main():
         sys.exit(0)
 
     if args.filter and (not args.list):
-        raise Exception('Filter is specified but hostlist is missing. \
-                        Use -l [HOSTLIST] or remove filter.')
+        raise Exception('Filter is specified but hostlist is missing. '\
+                        'Use -l [HOSTLIST] or remove filter.')
     if args.hosts and args.list:
-        raise Exception('-l, use hostlist, is not compatible with -H, \
-                        defined hosts.')
+        raise Exception('-l, use hostlist, is not compatible with -H, '\
+                        'defined hosts.')
     if args.human_readable and args.grep:
-        raise Exception('-e, human readable, is not compatible with -g, \
-                        grep option.')
+        raise Exception('-e, human readable, is not compatible with -g, '\
+                        'grep option.')
     if args.case_insensitive and (not args.grep):
-        raise Exception('-i, case insensitive, can be used only with -g, \
-                        grep option.')
+        raise Exception('-i, case insensitive, can be used only with -g, '\
+                        'grep option.')
     if args.batch and args.admin:
-        raise Exception('-b, batch mode, is not compatible with -a, \
-                        admin mode.')
+        raise Exception('-b, batch mode, is not compatible with -a, '\
+                        'admin mode.')
     if args.destination and (not args.copy_file):
-        raise Exception('Destination is specified but file to be copied \
-                        is missing.')
+        raise Exception('Destination is specified but file to be copied '\
+                        'is missing.')
     if args.copy_file and args.admin:
         raise Exception('-c, copy file is not compatible with -a, admin mode.')
     if args.copy_file and args.script:
-        raise Exception('-c, copy file is not compatible with -s, \
-                        script path.')
+        raise Exception('-c, copy file is not compatible with -s, '\
+                        'script path.')
     if (not args.user) and (not Cfg['Main']['User']):
         raise Exception('User not provided in config or via -u parameter.')
 
@@ -168,6 +167,11 @@ def main():
         ReportPath = args.report_path
     else:
         ReportPath = './reports'
+
+    if Cfg['Settings']['OutputHostnameDelimiter']:
+        OutputHostnameDelimiter = Cfg['Settings']['OutputHostnameDelimiter']
+    else:
+        OutputHostnameDelimiter = ' '
 
     # FIXME future code
     # if args.external:
@@ -209,7 +213,9 @@ def main():
                 repeat(args.script),
                 repeat(RunId),
                 repeat(ImportOsCheckLib),
-                repeat(Cfg['Path']['OsReleaseLib'])
+                repeat(Cfg['Path']['OsReleaseLib']),
+                repeat(OutputHostnameDelimiter),
+                repeat(args.human_readable)
                 )
         for result in Results:
             print(result)
