@@ -191,6 +191,14 @@ def main():
         Hosts = args.hosts.split(",")
     elif args.list:
         Hosts = [line.rstrip('\n') for line in open(args.list)]
+    else:
+        hosts_list = []
+        for root, dirs, files in os.walk(Cfg['Path']['HostsDir']):
+            for file in files:
+                hosts_list.append(file)
+        hosts_list_selection = SelectionMenu.get_selection(hosts_list)
+        hosts_file = Cfg['Path']['HostsDir']+'/'+hosts_list[hosts_list_selection]
+        Hosts = [line.rstrip('\n') for line in open(hosts_file)]
 
     try:
         Hosts
