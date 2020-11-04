@@ -5,57 +5,19 @@ import sys
 import yaml
 import datetime
 import argparse
-import concurrent.futures
-from fabric import Connection
-import pdb
+#import pdb
 import random
 import string
 import mmap
-import logging
-from itertools import repeat
+#import logging
+#from itertools import repeat
 from consolemenu import *
 from consolemenu.items import *
+import asyncio
+import asyncssh
 
-
-def run_ssh(Host, User, Script, RunId, ImportOsCheckLib, OsReleasePath, OutputHostnameDelimiter, human_readable):
-    UserHost = User+'@'+Host
-    Command = ''
-    lettersAndDigits = string.ascii_letters + string.digits
-    RandomPart = ''.join(random.choice(lettersAndDigits) for __ in range(8))
-
-    try:
-        Connection(UserHost).open()
-    except:
-        return ('ERROR'),Host,('Unable to open SSH connection.')
-
-    if Script:
-        # pdb.set_trace()
-        TmpScript = '/tmp/pybroadexec_'+RunId+'_'+RandomPart+'.sh'
-        Connection(UserHost).put(Script, TmpScript)
-
-        if ImportOsCheckLib:
-            TmpOsLib = '/tmp/osrelease_lib_'+RunId+'_'+RandomPart+'.sh'
-            Connection(UserHost).put(OsReleasePath, TmpOsLib)
-            Command += \
-                'chmod 700 '+TmpOsLib+';\
-                sed -i -e \'/#!/r '+TmpOsLib+'\' '+TmpScript+';\
-                rm '+TmpOsLib+'; '
-
-        Command += \
-            'chmod 700 '+TmpScript+';\
-            uname -n;\
-            '+TmpScript+';\
-            rm '+TmpScript
-
-    Result = Connection(UserHost).run(Command, hide=True)
-    Msg = OutputHostnameDelimiter+"\n{0.stdout}\n{0.stderr}"
-    if human_readable:
-        return ('OK'),Host,Msg.format(Result)
-    else:
-        return ('OK'),Host,Msg.format(Result).replace('\n', ' ')
 
 def main():
-    # go to PyBroadexec directory
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     with open("config.yml", 'r') as Stream:
@@ -208,6 +170,7 @@ def main():
 
 
     ### SCRIPT
+    cwd = os.getcwd()
     if not args.script:
         scripts = []
         for root, dirs, files in os.walk(Cfg['Path']['ScriptsDir']):
@@ -215,7 +178,7 @@ def main():
                 if file.endswith('.sh'):
                     scripts.append(file)
         script_selection = SelectionMenu.get_selection(scripts)
-        script = Cfg["Path"]["ScriptsDir"]+'/'+scripts[script_selection]
+        script = cwd+'/'+Cfg["Path"]["ScriptsDir"]+'/'+scripts[script_selection]
     else:
         script = args.script
 
@@ -230,21 +193,49 @@ def main():
         else:
             ImportOsCheckLib = 'false'
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        Results = executor.map(
-                run_ssh,
-                Hosts,
-                repeat(Cfg['Main']['User']),
-                repeat(args.script),
-                repeat(RunId),
-                repeat(ImportOsCheckLib),
-                repeat(Cfg['Path']['OsReleaseLib']),
-                repeat(OutputHostnameDelimiter),
-                repeat(args.human_readable)
-                )
-        for result in Results:
-            print(result)
+    async def run_client(Host, TmpScript):
+        async with asyncssh.connect(Host) as conn:
+            await asyncssh.scp((conn, script), TmpScript)
+            result = await conn.run('chmod +x '+TmpScript+'; '+TmpScript)
 
+            if result.exit_status == 0:
+                print(result.stdout, end='')
+            else:
+                print(result.stderr, end='', file=sys.stderr)
+                print('Program exited with status %d' % result.exit_status,
+                      file=sys.stderr)
+
+    def run_ssh():
+        UserHost = Cfg['Main']['User'] + '@' + Host
+        Command = ''
+        lettersAndDigits = string.ascii_letters + string.digits
+        RandomPart = ''.join(random.choice(lettersAndDigits) for __ in range(8))
+
+        if script:
+            # pdb.set_trace()
+            TmpScript = '/tmp/pybroadexec_' + RunId + '_' + RandomPart + '.sh'
+
+            if ImportOsCheckLib:
+                TmpOsLib = '/tmp/osrelease_lib_' + RunId + '_' + RandomPart + '.sh'
+                Command += \
+                    'chmod +x ' + TmpOsLib + ';\
+                    sed -i -e \'/#!/r ' + TmpOsLib + '\' ' + TmpScript + ';\
+                    rm ' + TmpOsLib + '; '
+
+            Command += \
+                'chmod +x ' + TmpScript + ';\
+                uname -n;\
+                ' + TmpScript + ';\
+                rm ' + TmpScript
+
+        try:
+            asyncio.get_event_loop().run_until_complete(run_client(Host, TmpScript))
+        except (OSError, asyncssh.Error) as exc:
+            sys.exit('SSH connection failed: ' + str(exc))
+
+
+    for Host in Hosts:
+        run_ssh()
 
 if __name__ == "__main__":
     main()
