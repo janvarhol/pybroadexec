@@ -15,7 +15,7 @@ from consolemenu import *
 from consolemenu.items import *
 import asyncio
 import asyncssh
-
+import time
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -180,7 +180,7 @@ def main():
         script_selection = SelectionMenu.get_selection(scripts)
         script = cwd+'/'+Cfg["Path"]["ScriptsDir"]+'/'+scripts[script_selection]
     else:
-        script = args.script
+        script = cwd+'/'+Cfg["Path"]["ScriptsDir"]+'/'+args.script
 
     with open(script) as Stream:
         s = mmap.mmap(
@@ -193,13 +193,23 @@ def main():
         else:
             ImportOsCheckLib = 'false'
 
-    async def run_client(Host, TmpScript):
+    HumanReadable = False
+    if args.human_readable:
+        HumanReadable = args.human_readable
+    elif Cfg['Settings']['HumanReadableReport']:
+        HumanReadable = Cfg['Settings']['HumanReadableReport']
+
+    async def run_client(Host, TmpScript, Command):
         async with asyncssh.connect(Host) as conn:
             await asyncssh.scp((conn, script), TmpScript)
-            result = await conn.run('chmod +x '+TmpScript+'; '+TmpScript)
+            result = await conn.run(Command)
+
 
             if result.exit_status == 0:
-                print(result.stdout, end='')
+                if HumanReadable:
+                    print(Host + OutputHostnameDelimiter + '\n' + result.stdout, end='')
+                else:
+                    print(Host+OutputHostnameDelimiter+result.stdout.replace('\n', ' '), end='')
             else:
                 print(result.stderr, end='', file=sys.stderr)
                 print('Program exited with status %d' % result.exit_status,
@@ -224,12 +234,11 @@ def main():
 
             Command += \
                 'chmod +x ' + TmpScript + ';\
-                uname -n;\
                 ' + TmpScript + ';\
                 rm ' + TmpScript
 
         try:
-            asyncio.get_event_loop().run_until_complete(run_client(Host, TmpScript))
+            asyncio.get_event_loop().run_until_complete(run_client(Host, TmpScript, Command))
         except (OSError, asyncssh.Error) as exc:
             sys.exit('SSH connection failed: ' + str(exc))
 
